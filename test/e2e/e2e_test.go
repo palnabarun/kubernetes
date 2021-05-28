@@ -37,6 +37,7 @@ import (
 	"k8s.io/kubernetes/test/e2e/framework/config"
 	"k8s.io/kubernetes/test/e2e/framework/testfiles"
 	"k8s.io/kubernetes/test/e2e/generated"
+	e2enode "k8s.io/kubernetes/test/e2e_node"
 	"k8s.io/kubernetes/test/utils/image"
 
 	// test sources
@@ -100,6 +101,11 @@ func TestMain(m *testing.M) {
 		Asset:      generated.Asset,
 		AssetNames: generated.AssetNames,
 	})
+
+	//Enable embedded FS file lookup as fallback
+	testfiles.AddFileSource(GetE2ETestingManifestsFS())
+	testfiles.AddFileSource(e2enode.GetE2ENodeTestingManifestsFS())
+
 	if framework.TestContext.ListConformanceTests {
 		var tests []struct {
 			Testname    string `yaml:"testname"`

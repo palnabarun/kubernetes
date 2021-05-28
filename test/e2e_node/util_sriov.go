@@ -18,11 +18,11 @@ package e2enode
 
 const (
 	// SRIOVDevicePluginCMYAML is the path of the config map to configure the sriov device plugin.
-	SRIOVDevicePluginCMYAML = "test/e2e_node/testing-manifests/sriovdp-cm.yaml"
+	SRIOVDevicePluginCMYAML = "testing-manifests/sriovdp-cm.yaml"
 	// SRIOVDevicePluginDSYAML is the path of the daemonset template of the sriov device plugin. // TODO: Parametrize it by making it a feature in TestFramework.
-	SRIOVDevicePluginDSYAML = "test/e2e_node/testing-manifests/sriovdp-ds.yaml"
+	SRIOVDevicePluginDSYAML = "testing-manifests/sriovdp-ds.yaml"
 	// SRIOVDevicePluginSAYAML is the path of the service account needed by the sriov device plugin to run.
-	SRIOVDevicePluginSAYAML = "test/e2e_node/testing-manifests/sriovdp-sa.yaml"
+	SRIOVDevicePluginSAYAML = "testing-manifests/sriovdp-sa.yaml"
 	// SRIOVDevicePluginName is the name of the device plugin pod
 	SRIOVDevicePluginName = "sriov-device-plugin"
 )

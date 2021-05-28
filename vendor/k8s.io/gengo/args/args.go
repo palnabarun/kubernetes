@@ -172,6 +172,7 @@ func (g *GeneratorArgs) InputIncludes(p *types.Package) bool {
 // DefaultSourceTree returns the /src directory of the first entry in $GOPATH.
 // If $GOPATH is empty, it returns "./". Useful as a default output location.
 func DefaultSourceTree() string {
+	// TODO: for the go mod enablement edit this
 	paths := strings.Split(os.Getenv("GOPATH"), string(filepath.ListSeparator))
 	if len(paths) > 0 && len(paths[0]) > 0 {
 		return filepath.Join(paths[0], "src")

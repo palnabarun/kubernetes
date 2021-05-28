@@ -48,7 +48,7 @@ const (
 	// sampleResourceName is the name of the example resource which is used in the e2e test
 	sampleResourceName = "example.com/resource"
 	// sampleDevicePluginDSYAML is the path of the daemonset template of the sample device plugin. // TODO: Parametrize it by making it a feature in TestFramework.
-	sampleDevicePluginDSYAML = "test/e2e/testing-manifests/sample-device-plugin.yaml"
+	sampleDevicePluginDSYAML = "testing-manifests/sample-device-plugin.yaml"
 	// sampleDevicePluginName is the name of the device plugin pod
 	sampleDevicePluginName = "sample-device-plugin"
 

@@ -25,8 +25,10 @@ limitations under the License.
 package testfiles
 
 import (
+	"embed"
 	"errors"
 	"fmt"
+	"io/fs"
 	"io/ioutil"
 	"os"
 	"path"
@@ -175,4 +177,46 @@ func (b BindataFileSource) DescribeFiles() string {
 	lines = append(lines, assets...)
 	description := strings.Join(lines, "\n   ")
 	return description
+}
+
+// EmbeddedFileSource handles files stored in a package generated with bindata.
+type EmbeddedFileSource struct {
+	EmbeddedFS embed.FS
+	filelist   []string
+}
+
+// ReadTestFile looks for an embedded file with the given path.
+func (e EmbeddedFileSource) ReadTestFile(filepath string) ([]byte, error) {
+	b, err := e.EmbeddedFS.ReadFile(filepath)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// DescribeFiles explains that it is looking inside an embedded filesystem
+func (e EmbeddedFileSource) DescribeFiles() string {
+	var lines []string
+	lines = append(lines, "The following files are built into the test executable using go:embed.")
+
+	if len(e.filelist) == 0 {
+		e.populateFilelist()
+	}
+	lines = append(lines, e.filelist...)
+
+	return strings.Join(lines, "\n\t")
+}
+
+func (e EmbeddedFileSource) populateFilelist() {
+	fs.WalkDir(e.EmbeddedFS, ".", func(path string, d fs.DirEntry, err error) error {
+		if !d.IsDir() {
+			e.filelist = append(e.filelist, path)
+		}
+
+		return nil
+	})
 }
