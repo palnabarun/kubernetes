@@ -452,6 +452,9 @@ func NewControllerInitializers(loopMode ControllerLoopMode) map[string]InitFunc 
 		controllers["storage-version-gc"] = startStorageVersionGCController
 	}
 
+	// TODO: Gate registration using a FeatureGate
+	controllers["crd-bootstrapper"] = startCRDBootstrapController
+
 	return controllers
 }
 

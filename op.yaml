@@ -1,0 +1,9 @@
+apiVersion: math.example.com/v1
+kind: Operation
+metadata:
+  name: multiply-10-20
+spec:
+  operator: mult
+  operand1: 10
+  operand2: 20
+
