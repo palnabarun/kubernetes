@@ -15,17 +15,3 @@ limitations under the License.
 */
 
 package config
-
-import (
-	"fmt"
-)
-
-var requiredErr = fmt.Errorf("required")
-
-// appendErr is a helper function to collect field-specific errors.
-func appendErr(errs []error, err error, field string) []error {
-	if err != nil {
-		return append(errs, fmt.Errorf("%s: %s", field, err.Error()))
-	}
-	return errs
-}
