@@ -27,6 +27,7 @@ import (
 	"k8s.io/api/authorization/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
+	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	authorizationapi "k8s.io/apiserver/pkg/authorization/config"
 )
@@ -35,11 +36,8 @@ import (
 func ValidateAuthorizationConfiguration(fldPath *field.Path, c *authorizationapi.AuthorizationConfiguration, knownTypes sets.String, repeatableTypes sets.String) field.ErrorList {
 	allErrs := field.ErrorList{}
 
-	webhooks := 0
-	for _, a := range c.Authorizers {
-		if a.Type == authorizationapi.TypeWebhook {
-			webhooks++
-		}
+	if len(c.Authorizers) == 0 {
+		allErrs = append(allErrs, field.Required(fldPath.Child("authorizers"), "at least one authorization mode must be defined"))
 	}
 
 	seenAuthorizerTypes := sets.NewString()
@@ -67,7 +65,7 @@ func ValidateAuthorizationConfiguration(fldPath *field.Path, c *authorizationapi
 				allErrs = append(allErrs, field.Required(fldPath.Child("webhook"), "required when type=Webhook"))
 				continue
 			}
-			allErrs = append(allErrs, ValidateWebhookConfiguration(fldPath, a.Webhook, webhooks > 0, seenWebhookNames)...)
+			allErrs = append(allErrs, ValidateWebhookConfiguration(fldPath, a.Webhook, seenWebhookNames)...)
 		default:
 			if a.Webhook != nil {
 				allErrs = append(allErrs, field.Invalid(fldPath.Child("webhook"), "non-null", "may only be specified when type=Webhook"))
@@ -78,30 +76,20 @@ func ValidateAuthorizationConfiguration(fldPath *field.Path, c *authorizationapi
 	return allErrs
 }
 
-func ValidateWebhookConfiguration(fldPath *field.Path, c *authorizationapi.WebhookConfiguration, requireName bool, seenNames sets.String) field.ErrorList {
+func ValidateWebhookConfiguration(fldPath *field.Path, c *authorizationapi.WebhookConfiguration, seenNames sets.String) field.ErrorList {
 	allErrs := field.ErrorList{}
 	if len(c.Name) == 0 {
-		if requireName {
-			allErrs = append(allErrs, field.Required(fldPath.Child("name"), ""))
-		}
+		allErrs = append(allErrs, field.Required(fldPath.Child("name"), ""))
 	} else if seenNames.Has(c.Name) {
 		allErrs = append(allErrs, field.Duplicate(fldPath.Child("name"), c.Name))
-	} else {
-		// TODO: check format? dns label or subdomain?
+	} else if errs := utilvalidation.IsDNS1035Label(c.Name); len(errs) != 0 {
+		allErrs = append(allErrs, field.Invalid(fldPath.Child("name"), c.Name, fmt.Sprintf("webhook name is invalid: %s", strings.Join(errs, ", "))))
 	}
 	seenNames.Insert(c.Name)
 
-	if c.AuthorizedTTL.Duration == 0 {
-		allErrs = append(allErrs, field.Required(fldPath.Child("authorizedTTL"), ""))
-	}
-
-	if c.UnauthorizedTTL.Duration == 0 {
-		allErrs = append(allErrs, field.Required(fldPath.Child("unauthorizedTTL"), ""))
-	}
-
 	if c.Timeout.Duration == 0 {
 		allErrs = append(allErrs, field.Required(fldPath.Child("timeout"), ""))
-	} else if c.Timeout.Duration > 30*time.Minute {
+	} else if c.Timeout.Duration > 30*time.Second {
 		allErrs = append(allErrs, field.Invalid(fldPath.Child("timeout"), c.Timeout.Duration.String(), "must be <= 30s"))
 	}
 
@@ -143,7 +131,7 @@ func ValidateWebhookConfiguration(fldPath *field.Path, c *authorizationapi.Webho
 			allErrs = append(allErrs, field.Invalid(fldPath.Child("connectionInfo", "kubeConfigFile"), *c.ConnectionInfo.KubeConfigFile, "must be a regular file"))
 		}
 	default:
-		allErrs = append(allErrs, field.NotSupported(fldPath.Child("connectionInfo", "type"), c.FailurePolicy, []string{"InClusterConfig", "KubeConfigFile"}))
+		allErrs = append(allErrs, field.NotSupported(fldPath.Child("connectionInfo", "type"), c.ConnectionInfo, []string{"InClusterConfig", "KubeConfigFile"}))
 	}
 
 	for i, condition := range c.MatchConditions {
