@@ -17,9 +17,11 @@ limitations under the License.
 package validation
 
 import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"time"
+
 	"testing"
 
-	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	api "k8s.io/apiserver/pkg/authorization/config"
 )
@@ -31,26 +33,66 @@ type (
 	}
 )
 
-const (
-	invalidValueUppercase = "TEST"
-	invalidValueChars     = "_&$%#"
-	invalidValueTooLong   = "testtesttesttesttesttesttesttesttesttesttesttesttesttesttesttest"
-	invalidValueEmpty     = ""
-	validValue            = "testing"
-)
-
-var (
-	knownTypes      = sets.NewString()
-	repeatableTypes = sets.NewString()
-)
-
 func TestValidateAuthorizationConfiguration(t *testing.T) {
-	tests := []test{}
+	tests := []test{
+		// bare minimum configuration
+		{
+			configuration: api.AuthorizationConfiguration{
+				Authorizers: []api.AuthorizerConfiguration{
+					{
+						Type: "Webhook",
+						Webhook: &api.WebhookConfiguration{
+							Name:                       "default",
+							Timeout:                    metav1.Duration{5 * time.Second},
+							FailurePolicy:              "NoOpinion",
+							SubjectAccessReviewVersion: "v1",
+							ConnectionInfo: api.WebhookConnectionInfo{
+								Type: "InClusterConfig",
+							},
+						},
+					},
+				},
+			},
+			expectedErrList: field.ErrorList{},
+		},
+		// bare minimum configuration with multiple webhooks
+		{
+			configuration: api.AuthorizationConfiguration{
+				Authorizers: []api.AuthorizerConfiguration{
+					{
+						Type: "Webhook",
+						Webhook: &api.WebhookConfiguration{
+							Name:                       "default",
+							Timeout:                    metav1.Duration{5 * time.Second},
+							FailurePolicy:              "NoOpinion",
+							SubjectAccessReviewVersion: "v1",
+							ConnectionInfo: api.WebhookConnectionInfo{
+								Type: "InClusterConfig",
+							},
+						},
+					},
+					{
+						Type: "Webhook",
+						Webhook: &api.WebhookConfiguration{
+							Name:                       "second-webhook",
+							Timeout:                    metav1.Duration{5 * time.Second},
+							FailurePolicy:              "NoOpinion",
+							SubjectAccessReviewVersion: "v1",
+							ConnectionInfo: api.WebhookConnectionInfo{
+								Type: "InClusterConfig",
+							},
+						},
+					},
+				},
+			},
+			expectedErrList: field.ErrorList{},
+		},
+	}
 
 	for _, test := range tests {
 		errList := ValidateAuthorizationConfiguration(nil, &test.configuration, knownTypes, repeatableTypes)
 		if len(errList) != len(test.expectedErrList) {
-			t.Errorf("expected %d errs, got %d", len(test.expectedErrList), len(errList))
+			t.Errorf("expected %d errs, got %d, errors %v", len(test.expectedErrList), len(errList), errList)
 		}
 
 		for i, expected := range test.expectedErrList {

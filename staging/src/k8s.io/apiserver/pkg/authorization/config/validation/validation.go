@@ -31,16 +31,14 @@ import (
 	authorizationapi "k8s.io/apiserver/pkg/authorization/config"
 )
 
+var (
+	knownTypes      = sets.NewString(string(authorizationapi.TypeWebhook))
+	repeatableTypes = sets.NewString(string(authorizationapi.TypeWebhook))
+)
+
 // ValidateAuthorizationConfiguration validates a given AuthorizationConfiguration.
 func ValidateAuthorizationConfiguration(fldPath *field.Path, c *authorizationapi.AuthorizationConfiguration, knownTypes sets.String, repeatableTypes sets.String) field.ErrorList {
 	allErrs := field.ErrorList{}
-
-	webhooks := 0
-	for _, a := range c.Authorizers {
-		if a.Type == authorizationapi.TypeWebhook {
-			webhooks++
-		}
-	}
 
 	seenAuthorizerTypes := sets.NewString()
 	seenWebhookNames := sets.NewString()
@@ -67,7 +65,7 @@ func ValidateAuthorizationConfiguration(fldPath *field.Path, c *authorizationapi
 				allErrs = append(allErrs, field.Required(fldPath.Child("webhook"), "required when type=Webhook"))
 				continue
 			}
-			allErrs = append(allErrs, ValidateWebhookConfiguration(fldPath, a.Webhook, webhooks > 0, seenWebhookNames)...)
+			allErrs = append(allErrs, ValidateWebhookConfiguration(fldPath, a.Webhook, seenWebhookNames)...)
 		default:
 			if a.Webhook != nil {
 				allErrs = append(allErrs, field.Invalid(fldPath.Child("webhook"), "non-null", "may only be specified when type=Webhook"))
@@ -78,26 +76,16 @@ func ValidateAuthorizationConfiguration(fldPath *field.Path, c *authorizationapi
 	return allErrs
 }
 
-func ValidateWebhookConfiguration(fldPath *field.Path, c *authorizationapi.WebhookConfiguration, requireName bool, seenNames sets.String) field.ErrorList {
+func ValidateWebhookConfiguration(fldPath *field.Path, c *authorizationapi.WebhookConfiguration, seenNames sets.String) field.ErrorList {
 	allErrs := field.ErrorList{}
 	if len(c.Name) == 0 {
-		if requireName {
-			allErrs = append(allErrs, field.Required(fldPath.Child("name"), ""))
-		}
+		allErrs = append(allErrs, field.Required(fldPath.Child("name"), ""))
 	} else if seenNames.Has(c.Name) {
 		allErrs = append(allErrs, field.Duplicate(fldPath.Child("name"), c.Name))
 	} else {
 		// TODO: check format? dns label or subdomain?
 	}
 	seenNames.Insert(c.Name)
-
-	if c.AuthorizedTTL.Duration == 0 {
-		allErrs = append(allErrs, field.Required(fldPath.Child("authorizedTTL"), ""))
-	}
-
-	if c.UnauthorizedTTL.Duration == 0 {
-		allErrs = append(allErrs, field.Required(fldPath.Child("unauthorizedTTL"), ""))
-	}
 
 	if c.Timeout.Duration == 0 {
 		allErrs = append(allErrs, field.Required(fldPath.Child("timeout"), ""))
