@@ -209,11 +209,12 @@ func TestLoadFromData(t *testing.T) {
 			data: []byte(`{
 "apiVersion":"apiserver.config.k8s.io/v1alpha1",
 "kind":"AuthorizationConfiguration",
-"authorizers":[{"type":"Webhook","webhook":{}}]}`),
+"authorizers":[{"type":"Webhook","webhook":{"name":"default"}}]}`),
 			expectConfig: &api.AuthorizationConfiguration{
 				Authorizers: []api.AuthorizerConfiguration{{
 					Type: "Webhook",
 					Webhook: &api.WebhookConfiguration{
+						Name:            "default",
 						AuthorizedTTL:   metav1.Duration{Duration: 5 * time.Minute},
 						UnauthorizedTTL: metav1.Duration{Duration: 30 * time.Second},
 					},
