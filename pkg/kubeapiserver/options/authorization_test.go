@@ -18,6 +18,7 @@ package options
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -34,6 +35,13 @@ import (
 func TestAuthzValidate(t *testing.T) {
 	examplePolicyFile := "../../auth/authorizer/abac/example_policy_file.jsonl"
 
+	tempKubeConfigFile, err := os.CreateTemp("/tmp", "kubeconfig")
+	if err != nil {
+		t.Fatalf("failed to set up temp file: %v", err)
+	}
+	tempKubeConfigFilePath := tempKubeConfigFile.Name()
+	defer os.Remove(tempKubeConfigFilePath)
+
 	testCases := []struct {
 		name                 string
 		modes                []string
@@ -47,19 +55,19 @@ func TestAuthzValidate(t *testing.T) {
 			name:                 "Unknown modes should return errors",
 			modes:                []string{"DoesNotExist"},
 			expectErr:            true,
-			expectErrorSubString: "is not a valid mode",
+			expectErrorSubString: "authorizers[0].type: Unsupported value: \"DoesNotExist\": supported values: \"ABAC\", \"AlwaysAllow\", \"AlwaysDeny\", \"Node\", \"RBAC\", \"Webhook\"",
 		},
 		{
 			name:                 "At least one authorizationMode is necessary",
 			modes:                []string{},
 			expectErr:            true,
-			expectErrorSubString: "at least one authorization-mode must be passed",
+			expectErrorSubString: "authorizers: Required value: at least one authorization mode must be defined",
 		},
 		{
 			name:                 "ModeAlwaysAllow specified more than once",
 			modes:                []string{modes.ModeAlwaysAllow, modes.ModeAlwaysAllow},
 			expectErr:            true,
-			expectErrorSubString: "has mode specified more than once",
+			expectErrorSubString: "authorizers[1].type: Duplicate value: \"AlwaysAllow\"",
 		},
 		{
 			name:      "ModeAlwaysAllow and ModeAlwaysDeny should return without authorizationPolicyFile",
@@ -91,7 +99,7 @@ func TestAuthzValidate(t *testing.T) {
 			name:                 "ModeWebhook requires a config file",
 			modes:                []string{modes.ModeWebhook},
 			expectErr:            true,
-			expectErrorSubString: "authorization-mode Webhook's authorization config file not passed",
+			expectErrorSubString: "authorizers[0].connectionInfo.kubeConfigFile: Required value",
 		},
 		{
 			name:                 "Cannot provide webhook config file without ModeWebhook",
@@ -103,7 +111,7 @@ func TestAuthzValidate(t *testing.T) {
 		{
 			name:              "ModeWebhook should not error if a valid config file is provided",
 			modes:             []string{modes.ModeWebhook},
-			webhookConfigFile: "authz_webhook_config.yaml",
+			webhookConfigFile: tempKubeConfigFile.Name(),
 			expectErr:         false,
 		},
 		{
