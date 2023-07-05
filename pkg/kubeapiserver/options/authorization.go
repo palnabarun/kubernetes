@@ -27,7 +27,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	authzconfig "k8s.io/apiserver/pkg/authorization/config"
+	authzconfigloader "k8s.io/apiserver/pkg/authorization/config/load"
+	authzconfigvalidation "k8s.io/apiserver/pkg/authorization/config/validation"
+	genericfeatures "k8s.io/apiserver/pkg/features"
 	genericoptions "k8s.io/apiserver/pkg/server/options"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	versionedinformers "k8s.io/client-go/informers"
 	"k8s.io/kubernetes/pkg/kubeapiserver/authorizer"
 	authzmodes "k8s.io/kubernetes/pkg/kubeapiserver/authorizer/modes"
@@ -45,6 +49,8 @@ type BuiltInAuthorizationOptions struct {
 	// This allows us to configure the sleep time at each iteration and the maximum number of retries allowed
 	// before we fail the webhook call in order to limit the fan out that ensues when the system is degraded.
 	WebhookRetryBackoff *wait.Backoff
+
+	AuthorizationConfigurationFile string
 }
 
 // NewBuiltInAuthorizationOptions create a BuiltInAuthorizationOptions with default value
@@ -98,6 +104,21 @@ func (o *BuiltInAuthorizationOptions) Validate() []error {
 		allErrors = append(allErrors, fmt.Errorf("number of webhook retry attempts must be greater than 0, but is: %d", o.WebhookRetryBackoff.Steps))
 	}
 
+	if o.AuthorizationConfigurationFile != "" {
+		config, err := authzconfigloader.LoadFromFile(o.AuthorizationConfigurationFile)
+		if err != nil {
+			allErrors = append(allErrors, fmt.Errorf("failed to load config from file %s: %s", o.AuthorizationConfigurationFile, err))
+		}
+
+		errors := authzconfigvalidation.ValidateAuthorizationConfiguration(nil, config,
+			sets.NewString(authzmodes.AuthorizationModeChoices...),
+			sets.NewString(authzmodes.RepeatableAuthorizerTypes...),
+		).ToAggregate().Errors()
+		if len(errors) != 0 {
+			allErrors = append(allErrors, errors...)
+		}
+	}
+
 	return allErrors
 }
 
@@ -125,18 +146,42 @@ func (o *BuiltInAuthorizationOptions) AddFlags(fs *pflag.FlagSet) {
 		"authorization-webhook-cache-unauthorized-ttl", o.WebhookCacheUnauthorizedTTL,
 		"The duration to cache 'unauthorized' responses from the webhook authorizer.")
 
-	// TODO(palnabarun): add flag for the configuration file
+	fs.StringVar(&o.AuthorizationConfigurationFile, "authorization-config", o.AuthorizationConfigurationFile, ""+
+		"File with Authorization Configuration to configure the authorizer chain."+
+		"Note: This feature is in Alpha since v1.28."+
+		"The StructuredAuthorizationConfig feature needs to be set to true for enabling the functionality.")
+
 }
 
 // ToAuthorizationConfig convert BuiltInAuthorizationOptions to authorizer.Config
-func (o *BuiltInAuthorizationOptions) ToAuthorizationConfig(versionedInformerFactory versionedinformers.SharedInformerFactory) authorizer.Config {
-	return authorizer.Config{
+func (o *BuiltInAuthorizationOptions) ToAuthorizationConfig(versionedInformerFactory versionedinformers.SharedInformerFactory) (authorizer.Config, error) {
+	authorizerConfig := authorizer.Config{
 		PolicyFile:               o.PolicyFile,
 		VersionedInformerFactory: versionedInformerFactory,
 		WebhookRetryBackoff:      o.WebhookRetryBackoff,
-
-		AuthorizationConfiguration: o.buildAuthorizationConfiguration(),
 	}
+
+	var config *authzconfig.AuthorizationConfiguration
+	var err error
+
+	// When the feature flag is enabled,
+	//		the authorizer is built using the file provided through
+	// 		--authorization-config and the legacy flags are disregarded, except --authorization-policy-file,
+	//		which is required to define the ABAC Mode
+	// Else,
+	//		the AuthorizationConfiguration is built using the legacy flags.
+	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.StructuredAuthorizationConfig) {
+		config, err = authzconfigloader.LoadFromFile(o.AuthorizationConfigurationFile)
+		if err != nil {
+			return authorizerConfig, err
+		}
+	} else {
+		config = o.buildAuthorizationConfiguration()
+	}
+
+	authorizerConfig.AuthorizationConfiguration = config
+
+	return authorizerConfig, nil
 }
 
 // buildAuthorizationConfiguration converts existing flags to the AuthorizationConfiguration format

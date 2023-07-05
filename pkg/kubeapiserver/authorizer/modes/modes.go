@@ -36,6 +36,9 @@ const (
 // AuthorizationModeChoices is the list of supported authorization modes
 var AuthorizationModeChoices = []string{ModeAlwaysAllow, ModeAlwaysDeny, ModeABAC, ModeWebhook, ModeRBAC, ModeNode}
 
+// RepeatableAuthorizerTypes is the list of Authorizer that can be repeated in the Authorization Config
+var RepeatableAuthorizerTypes = []string{ModeWebhook}
+
 // IsValidAuthorizationMode returns true if the given authorization mode is a valid one for the apiserver
 func IsValidAuthorizationMode(authzMode string) bool {
 	return sets.NewString(AuthorizationModeChoices...).Has(authzMode)
