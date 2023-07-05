@@ -29,7 +29,8 @@ type AuthorizationConfiguration struct {
 }
 
 const (
-	TypeWebhook AuthorizerType = "Webhook"
+	TypeWebhook        AuthorizerType = "Webhook"
+	DefaultWebhookName string         = "default"
 )
 
 type AuthorizerType string
