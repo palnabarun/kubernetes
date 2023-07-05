@@ -181,6 +181,13 @@ const (
 	// document.
 	StorageVersionHash featuregate.Feature = "StorageVersionHash"
 
+	// owner: @palnabarun
+	// kep: https://kep.k8s.io/3221
+	// alpha: v1.28
+	//
+	// Enables Structured Authorization Configuration
+	StructuredAuthorizationConfig featuregate.Feature = "StructuredAuthorizationConfig"
+
 	// owner: @wojtek-t
 	// alpha: v1.15
 	// beta: v1.16
@@ -249,6 +256,8 @@ var defaultKubernetesFeatureGates = map[featuregate.Feature]featuregate.FeatureS
 	StorageVersionAPI: {Default: false, PreRelease: featuregate.Alpha},
 
 	StorageVersionHash: {Default: true, PreRelease: featuregate.Beta},
+
+	StructuredAuthorizationConfig: {Default: false, PreRelease: featuregate.Alpha},
 
 	WatchBookmark: {Default: true, PreRelease: featuregate.GA, LockToDefault: true},
 
