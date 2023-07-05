@@ -193,6 +193,7 @@ func Convert_config_WebhookConnectionInfo_To_v1alpha1_WebhookConnectionInfo(in *
 
 func autoConvert_v1alpha1_WebhookMatchCondition_To_config_WebhookMatchCondition(in *WebhookMatchCondition, out *config.WebhookMatchCondition, s conversion.Scope) error {
 	out.Expression = in.Expression
+	out.Message = in.Message
 	return nil
 }
 
@@ -202,6 +203,7 @@ func Convert_v1alpha1_WebhookMatchCondition_To_config_WebhookMatchCondition(in *
 }
 
 func autoConvert_config_WebhookMatchCondition_To_v1alpha1_WebhookMatchCondition(in *config.WebhookMatchCondition, out *WebhookMatchCondition, s conversion.Scope) error {
+	out.Message = in.Message
 	out.Expression = in.Expression
 	return nil
 }

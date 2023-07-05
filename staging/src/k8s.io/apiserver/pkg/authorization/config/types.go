@@ -115,4 +115,7 @@ type WebhookMatchCondition struct {
 	//
 	// Documentation on CEL: https://kubernetes.io/docs/reference/using-api/cel/
 	Expression string
+
+	// Message to put as a reason if the webhook is skipped due to expression not matching
+	Message string
 }
