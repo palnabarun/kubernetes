@@ -23,8 +23,10 @@ import (
 
 	"github.com/spf13/pflag"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
+	authzconfig "k8s.io/apiserver/pkg/authorization/config"
 	genericoptions "k8s.io/apiserver/pkg/server/options"
 	versionedinformers "k8s.io/client-go/informers"
 	"k8s.io/kubernetes/pkg/kubeapiserver/authorizer"
@@ -122,18 +124,45 @@ func (o *BuiltInAuthorizationOptions) AddFlags(fs *pflag.FlagSet) {
 	fs.DurationVar(&o.WebhookCacheUnauthorizedTTL,
 		"authorization-webhook-cache-unauthorized-ttl", o.WebhookCacheUnauthorizedTTL,
 		"The duration to cache 'unauthorized' responses from the webhook authorizer.")
+
+	// TODO(palnabarun): add flag for the configuration file
 }
 
 // ToAuthorizationConfig convert BuiltInAuthorizationOptions to authorizer.Config
 func (o *BuiltInAuthorizationOptions) ToAuthorizationConfig(versionedInformerFactory versionedinformers.SharedInformerFactory) authorizer.Config {
 	return authorizer.Config{
-		AuthorizationModes:          o.Modes,
-		PolicyFile:                  o.PolicyFile,
-		WebhookConfigFile:           o.WebhookConfigFile,
-		WebhookVersion:              o.WebhookVersion,
-		WebhookCacheAuthorizedTTL:   o.WebhookCacheAuthorizedTTL,
-		WebhookCacheUnauthorizedTTL: o.WebhookCacheUnauthorizedTTL,
-		VersionedInformerFactory:    versionedInformerFactory,
-		WebhookRetryBackoff:         o.WebhookRetryBackoff,
+		PolicyFile:               o.PolicyFile,
+		VersionedInformerFactory: versionedInformerFactory,
+		WebhookRetryBackoff:      o.WebhookRetryBackoff,
+
+		AuthorizationConfiguration: o.buildAuthorizationConfiguration(),
 	}
+}
+
+// buildAuthorizationConfiguration converts existing flags to the AuthorizationConfiguration format
+// In future, when the existing flags are removed, this method can be retired
+func (o *BuiltInAuthorizationOptions) buildAuthorizationConfiguration() *authzconfig.AuthorizationConfiguration {
+	var authorizers []authzconfig.AuthorizerConfiguration
+	for _, mode := range o.Modes {
+		switch mode {
+		case authzmodes.ModeRBAC, authzmodes.ModeNode, authzmodes.ModeABAC, authzmodes.ModeAlwaysDeny, authzmodes.ModeAlwaysAllow:
+			authorizers = append(authorizers, authzconfig.AuthorizerConfiguration{Type: authzconfig.AuthorizerType(mode)})
+		case authzmodes.ModeWebhook:
+			authorizers = append(authorizers, authzconfig.AuthorizerConfiguration{
+				Type: authzconfig.TypeWebhook,
+				Webhook: &authzconfig.WebhookConfiguration{
+					Name:                       authzconfig.DefaultWebhookName,
+					AuthorizedTTL:              metav1.Duration{o.WebhookCacheAuthorizedTTL},
+					UnauthorizedTTL:            metav1.Duration{o.WebhookCacheUnauthorizedTTL},
+					SubjectAccessReviewVersion: o.WebhookVersion,
+					ConnectionInfo: authzconfig.WebhookConnectionInfo{
+						Type:           "KubeConfig",
+						KubeConfigFile: &o.WebhookConfigFile,
+					},
+				},
+			})
+		}
+	}
+
+	return &authzconfig.AuthorizationConfiguration{Authorizers: authorizers}
 }
