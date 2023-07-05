@@ -18,6 +18,7 @@ package validation
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"time"
 
 	"testing"
@@ -30,12 +31,25 @@ type (
 	test struct {
 		configuration   api.AuthorizationConfiguration
 		expectedErrList field.ErrorList
+		knownTypes      sets.String
+		repeatableTypes sets.String
 	}
 )
 
 func TestValidateAuthorizationConfiguration(t *testing.T) {
 	tests := []test{
-		// bare minimum configuration
+		// type is required if an authorizer is defined
+		{
+			configuration: api.AuthorizationConfiguration{
+				Authorizers: []api.AuthorizerConfiguration{
+					{},
+				},
+			},
+			expectedErrList: field.ErrorList{field.Required(field.NewPath("type"), "")},
+			knownTypes:      sets.NewString(string("Webhook")),
+			repeatableTypes: sets.NewString(string("Webhook")),
+		},
+		// bare minimum configuration with Webhook
 		{
 			configuration: api.AuthorizationConfiguration{
 				Authorizers: []api.AuthorizerConfiguration{
@@ -54,6 +68,8 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 				},
 			},
 			expectedErrList: field.ErrorList{},
+			knownTypes:      sets.NewString(string("Webhook")),
+			repeatableTypes: sets.NewString(string("Webhook")),
 		},
 		// bare minimum configuration with multiple webhooks
 		{
@@ -86,11 +102,42 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 				},
 			},
 			expectedErrList: field.ErrorList{},
+			knownTypes:      sets.NewString(string("Webhook")),
+			repeatableTypes: sets.NewString(string("Webhook")),
+		},
+		// configuration with unknown types
+		{
+			configuration: api.AuthorizationConfiguration{
+				Authorizers: []api.AuthorizerConfiguration{
+					{
+						Type: "Foo",
+					},
+				},
+			},
+			expectedErrList: field.ErrorList{field.NotSupported(field.NewPath("type"), "Foo", []string{"..."})},
+			knownTypes:      sets.NewString(string("Webhook")),
+			repeatableTypes: sets.NewString(string("Webhook")),
+		},
+		// configuration with not repeatable types
+		{
+			configuration: api.AuthorizationConfiguration{
+				Authorizers: []api.AuthorizerConfiguration{
+					{
+						Type: "Foo",
+					},
+					{
+						Type: "Foo",
+					},
+				},
+			},
+			expectedErrList: field.ErrorList{field.Duplicate(field.NewPath("type"), "Foo")},
+			knownTypes:      sets.NewString([]string{string("Foo"), string("Webhook")}...),
+			repeatableTypes: sets.NewString(string("Webhook")),
 		},
 	}
 
 	for _, test := range tests {
-		errList := ValidateAuthorizationConfiguration(nil, &test.configuration, knownTypes, repeatableTypes)
+		errList := ValidateAuthorizationConfiguration(nil, &test.configuration, test.knownTypes, test.repeatableTypes)
 		if len(errList) != len(test.expectedErrList) {
 			t.Errorf("expected %d errs, got %d, errors %v", len(test.expectedErrList), len(errList), errList)
 		}
