@@ -18,7 +18,6 @@ package load
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"reflect"
 	"strings"
@@ -35,14 +34,16 @@ var defaultConfig = &api.AuthorizationConfiguration{}
 
 func writeTempFile(t *testing.T, content string) string {
 	t.Helper()
-	file, err := ioutil.TempFile("", "config")
+	file, err := os.CreateTemp("", "config")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		os.Remove(file.Name())
+		if err := os.Remove(file.Name()); err != nil {
+			t.Fatal(err)
+		}
 	})
-	if err := ioutil.WriteFile(file.Name(), []byte(content), 0600); err != nil {
+	if err := os.WriteFile(file.Name(), []byte(content), 0600); err != nil {
 		t.Fatal(err)
 	}
 	return file.Name()
