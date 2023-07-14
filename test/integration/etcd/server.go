@@ -62,6 +62,13 @@ AwEHoUQDQgAEH6cuzP8XuD5wal6wf9M6xDljTOPLX2i8uIp/C/ASqiIGUeeKQtX0
 /IR3qCXyThP/dbCiHrF3v1cuhBOHY8CLVg==
 -----END EC PRIVATE KEY-----`
 
+const authorizationConfig = `
+apiVersion: apiserver.config.k8s.io/v1alpha1
+kind: AuthorizationConfiguration
+authorizers:
+- type: RBAC
+`
+
 // StartRealAPIServerOrDie starts an API server that is appropriate for use in tests that require one of every resource
 func StartRealAPIServerOrDie(t *testing.T, configFuncs ...func(*options.ServerRunOptions)) *APIServer {
 	certDir, err := os.MkdirTemp("", t.Name())
@@ -88,6 +95,15 @@ func StartRealAPIServerOrDie(t *testing.T, configFuncs ...func(*options.ServerRu
 		t.Fatalf("write file %s failed: %v", saSigningKeyFile.Name(), err)
 	}
 
+	authorizationConfigFile, err := os.CreateTemp("/tmp", "authorization-config.yaml")
+	if err != nil {
+		t.Fatalf("creating temp authorization config file failed: %v", err)
+	}
+	defer utiltesting.CloseAndRemove(t, authorizationConfigFile)
+	if err = os.WriteFile(authorizationConfigFile.Name(), []byte(authorizationConfig), 0666); err != nil {
+		t.Fatalf("writing to authorization config file failed: %v", err)
+	}
+
 	opts := options.NewServerRunOptions()
 	opts.Options.SecureServing.Listener = listener
 	opts.Options.SecureServing.ServerCert.CertDirectory = certDir
@@ -98,7 +114,7 @@ func StartRealAPIServerOrDie(t *testing.T, configFuncs ...func(*options.ServerRu
 	opts.Options.Authentication.APIAudiences = []string{"https://foo.bar.example.com"}
 	opts.Options.Authentication.ServiceAccounts.Issuers = []string{"https://foo.bar.example.com"}
 	opts.Options.Authentication.ServiceAccounts.KeyFiles = []string{saSigningKeyFile.Name()}
-	opts.Options.Authorization.Modes = []string{"RBAC"}
+	opts.Options.Authorization.AuthorizationConfigurationFile = authorizationConfigFile.Name()
 	opts.Options.Admission.GenericAdmission.DisablePlugins = []string{"ServiceAccount"}
 	opts.Options.APIEnablement.RuntimeConfig["api/all"] = "true"
 	for _, f := range configFuncs {

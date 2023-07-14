@@ -69,6 +69,13 @@ AwEHoUQDQgAEH6cuzP8XuD5wal6wf9M6xDljTOPLX2i8uIp/C/ASqiIGUeeKQtX0
 /IR3qCXyThP/dbCiHrF3v1cuhBOHY8CLVg==
 -----END EC PRIVATE KEY-----`
 
+const authorizationConfig = `
+apiVersion: apiserver.config.k8s.io/v1alpha1
+kind: AuthorizationConfiguration
+authorizers:
+- type: AlwaysAllow
+`
+
 // TearDownFunc is to be called to tear down a test server.
 type TearDownFunc func()
 
@@ -283,6 +290,17 @@ func StartTestServer(t Logger, instanceOptions *TestServerInstanceOptions, custo
 	s.ServiceAccountSigningKeyFile = saSigningKeyFile.Name()
 	s.Authentication.ServiceAccounts.Issuers = []string{"https://foo.bar.example.com"}
 	s.Authentication.ServiceAccounts.KeyFiles = []string{saSigningKeyFile.Name()}
+
+	authorizationConfigFile, err := os.CreateTemp("/tmp", "authorization-config.yaml")
+	if err != nil {
+		t.Fatalf("create temp file failed: %v", err)
+	}
+	defer os.RemoveAll(authorizationConfigFile.Name())
+	if err = os.WriteFile(authorizationConfigFile.Name(), []byte(authorizationConfig), 0666); err != nil {
+		t.Fatalf("write file %s failed: %v", authorizationConfigFile.Name(), err)
+	}
+
+	s.Authorization.AuthorizationConfigurationFile = authorizationConfigFile.Name()
 
 	completedOptions, err := s.Complete()
 	if err != nil {
