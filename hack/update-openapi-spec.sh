@@ -70,6 +70,8 @@ fi
 
 # Start kube-apiserver
 # omit enums from static openapi snapshots used to generate clients until #109177 is resolved
+# Note: Setting StructuredAuthorizationConfig=False since the feature gate enables StructuredAuthorizationConfiguration
+# which is not relevant for generating the OpenAPI spec as it doesn't gate any served APIs.
 kube::log::status "Starting kube-apiserver"
 "${KUBE_OUTPUT_HOSTBIN}/kube-apiserver" \
   --bind-address="${API_HOST}" \
@@ -77,7 +79,7 @@ kube::log::status "Starting kube-apiserver"
   --etcd-servers="http://${ETCD_HOST}:${ETCD_PORT}" \
   --advertise-address="10.10.10.10" \
   --cert-dir="${TMP_DIR}/certs" \
-  --feature-gates=AllAlpha=true,OpenAPIEnums=false \
+  --feature-gates=AllAlpha=true,OpenAPIEnums=false,StructuredAuthorizationConfig=False \
   --runtime-config="api/all=true" \
   --token-auth-file="${TMP_DIR}/tokenauth.csv" \
   --authorization-mode=RBAC \
