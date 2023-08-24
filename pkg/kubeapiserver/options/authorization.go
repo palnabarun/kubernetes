@@ -68,8 +68,8 @@ func (o *BuiltInAuthorizationOptions) Validate() []error {
 
 	authzConfiguration := o.buildAuthorizationConfiguration()
 	if errors := authzconfigvalidation.ValidateAuthorizationConfiguration(nil, authzConfiguration,
-		sets.NewString(authzmodes.AuthorizationModeChoices...),
-		sets.NewString(authzmodes.RepeatableAuthorizerTypes...),
+		sets.New[string](authzmodes.AuthorizationModeChoices...),
+		sets.New[string](authzmodes.RepeatableAuthorizerTypes...),
 	); len(errors) != 0 {
 		allErrors = append(allErrors, errors.ToAggregate().Errors()...)
 	}
