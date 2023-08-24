@@ -33,7 +33,7 @@ import (
 )
 
 // ValidateAuthorizationConfiguration validates a given AuthorizationConfiguration.
-func ValidateAuthorizationConfiguration(fldPath *field.Path, c *authorizationapi.AuthorizationConfiguration, knownTypes sets.String, repeatableTypes sets.String) field.ErrorList {
+func ValidateAuthorizationConfiguration(fldPath *field.Path, c *authorizationapi.AuthorizationConfiguration, knownTypes sets.Set[string], repeatableTypes sets.Set[string]) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	if len(c.Authorizers) == 0 {
@@ -50,7 +50,7 @@ func ValidateAuthorizationConfiguration(fldPath *field.Path, c *authorizationapi
 			continue
 		}
 		if !knownTypes.Has(aType) {
-			allErrs = append(allErrs, field.NotSupported(fldPath.Child("type"), aType, knownTypes.List()))
+			allErrs = append(allErrs, field.NotSupported(fldPath.Child("type"), aType, knownTypes.UnsortedList()))
 			continue
 		}
 		if seenAuthorizerTypes.Has(aType) && !repeatableTypes.Has(aType) {

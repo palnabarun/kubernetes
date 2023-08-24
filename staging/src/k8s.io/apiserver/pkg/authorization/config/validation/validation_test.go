@@ -32,8 +32,8 @@ type (
 	test struct {
 		configuration   api.AuthorizationConfiguration
 		expectedErrList field.ErrorList
-		knownTypes      sets.String
-		repeatableTypes sets.String
+		knownTypes      sets.Set[string]
+		repeatableTypes sets.Set[string]
 	}
 )
 
@@ -54,8 +54,8 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 				Authorizers: []api.AuthorizerConfiguration{},
 			},
 			expectedErrList: field.ErrorList{field.Required(field.NewPath("authorizers"), "at least one authorization mode must be defined")},
-			knownTypes:      sets.NewString(),
-			repeatableTypes: sets.NewString(),
+			knownTypes:      sets.New[string](),
+			repeatableTypes: sets.New[string](),
 		},
 		// type is required if an authorizer is defined
 		{
@@ -65,8 +65,8 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 				},
 			},
 			expectedErrList: field.ErrorList{field.Required(field.NewPath("type"), "")},
-			knownTypes:      sets.NewString(string("Webhook")),
-			repeatableTypes: sets.NewString(string("Webhook")),
+			knownTypes:      sets.New[string]("Webhook"),
+			repeatableTypes: sets.New[string]("Webhook"),
 		},
 		// bare minimum configuration with Webhook
 		{
@@ -87,8 +87,8 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 				},
 			},
 			expectedErrList: field.ErrorList{},
-			knownTypes:      sets.NewString(string("Webhook")),
-			repeatableTypes: sets.NewString(string("Webhook")),
+			knownTypes:      sets.New[string]("Webhook"),
+			repeatableTypes: sets.New[string]("Webhook"),
 		},
 		// bare minimum configuration with multiple webhooks
 		{
@@ -121,8 +121,8 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 				},
 			},
 			expectedErrList: field.ErrorList{},
-			knownTypes:      sets.NewString(string("Webhook")),
-			repeatableTypes: sets.NewString(string("Webhook")),
+			knownTypes:      sets.New[string]("Webhook"),
+			repeatableTypes: sets.New[string]("Webhook"),
 		},
 		// configuration with unknown types
 		{
@@ -134,8 +134,8 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 				},
 			},
 			expectedErrList: field.ErrorList{field.NotSupported(field.NewPath("type"), "Foo", []string{"..."})},
-			knownTypes:      sets.NewString(string("Webhook")),
-			repeatableTypes: sets.NewString(string("Webhook")),
+			knownTypes:      sets.New[string]("Webhook"),
+			repeatableTypes: sets.New[string]("Webhook"),
 		},
 		// configuration with not repeatable types
 		{
@@ -150,8 +150,8 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 				},
 			},
 			expectedErrList: field.ErrorList{field.Duplicate(field.NewPath("type"), "Foo")},
-			knownTypes:      sets.NewString([]string{string("Foo"), string("Webhook")}...),
-			repeatableTypes: sets.NewString(string("Webhook")),
+			knownTypes:      sets.New[string]("Webhook"),
+			repeatableTypes: sets.New[string]("Webhook"),
 		},
 		// when type=Webhook, webhook needs to be defined
 		{
@@ -163,8 +163,8 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 				},
 			},
 			expectedErrList: field.ErrorList{field.Required(field.NewPath("webhook"), "required when type=Webhook")},
-			knownTypes:      sets.NewString(string("Webhook")),
-			repeatableTypes: sets.NewString(string("Webhook")),
+			knownTypes:      sets.New[string]("Webhook"),
+			repeatableTypes: sets.New[string]("Webhook"),
 		},
 		// when type!=Webhook, webhooks needs to be nil
 		{
@@ -177,8 +177,8 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 				},
 			},
 			expectedErrList: field.ErrorList{field.Invalid(field.NewPath("webhook"), "non-null", "may only be specified when type=Webhook")},
-			knownTypes:      sets.NewString(string("Foo")),
-			repeatableTypes: sets.NewString(string("Webhook")),
+			knownTypes:      sets.New[string]("Foo"),
+			repeatableTypes: sets.New[string]("Webhook"),
 		},
 		// webhook name should be of non-zero length
 		{
@@ -199,8 +199,8 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 				},
 			},
 			expectedErrList: field.ErrorList{field.Required(field.NewPath("name"), "")},
-			knownTypes:      sets.NewString(string("Webhook")),
-			repeatableTypes: sets.NewString(string("Webhook")),
+			knownTypes:      sets.New[string]("Webhook"),
+			repeatableTypes: sets.New[string]("Webhook"),
 		},
 		// webhook names should be unique
 		{
@@ -233,8 +233,8 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 				},
 			},
 			expectedErrList: field.ErrorList{field.Duplicate(field.NewPath("name"), "name-1")},
-			knownTypes:      sets.NewString(string("Webhook")),
-			repeatableTypes: sets.NewString(string("Webhook")),
+			knownTypes:      sets.New[string]("Webhook"),
+			repeatableTypes: sets.New[string]("Webhook"),
 		},
 		// webhook names should conform to RFC1035
 		{
@@ -255,8 +255,8 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 				},
 			},
 			expectedErrList: field.ErrorList{field.Invalid(field.NewPath("name"), "1-lorem-ipsum-doler-es-mit", "webhook name is invalid")},
-			knownTypes:      sets.NewString(string("Webhook")),
-			repeatableTypes: sets.NewString(string("Webhook")),
+			knownTypes:      sets.New[string]("Webhook"),
+			repeatableTypes: sets.New[string]("Webhook"),
 		},
 		// timeout should be specified
 		{
@@ -276,8 +276,8 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 				},
 			},
 			expectedErrList: field.ErrorList{field.Required(field.NewPath("timeout"), "")},
-			knownTypes:      sets.NewString(string("Webhook")),
-			repeatableTypes: sets.NewString(string("Webhook")),
+			knownTypes:      sets.New[string]("Webhook"),
+			repeatableTypes: sets.New[string]("Webhook"),
 		},
 		// timeout shouldn't be zero
 		{
@@ -298,8 +298,8 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 				},
 			},
 			expectedErrList: field.ErrorList{field.Required(field.NewPath("timeout"), "")},
-			knownTypes:      sets.NewString(string("Webhook")),
-			repeatableTypes: sets.NewString(string("Webhook")),
+			knownTypes:      sets.New[string]("Webhook"),
+			repeatableTypes: sets.New[string]("Webhook"),
 		},
 		// timeout shouldn't be greater than 30seconds
 		{
@@ -320,8 +320,8 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 				},
 			},
 			expectedErrList: field.ErrorList{field.Invalid(field.NewPath("timeout"), time.Duration(60*time.Second).String(), "must be <= 30s")},
-			knownTypes:      sets.NewString(string("Webhook")),
-			repeatableTypes: sets.NewString(string("Webhook")),
+			knownTypes:      sets.New[string]("Webhook"),
+			repeatableTypes: sets.New[string]("Webhook"),
 		},
 		// SAR should defined
 		{
@@ -341,8 +341,8 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 				},
 			},
 			expectedErrList: field.ErrorList{field.Required(field.NewPath("subjectAccessReviewVersion"), "")},
-			knownTypes:      sets.NewString(string("Webhook")),
-			repeatableTypes: sets.NewString(string("Webhook")),
+			knownTypes:      sets.New[string]("Webhook"),
+			repeatableTypes: sets.New[string]("Webhook"),
 		},
 		// SAR should be one of v1 and v1beta1
 		{
@@ -363,8 +363,8 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 				},
 			},
 			expectedErrList: field.ErrorList{field.NotSupported(field.NewPath("subjectAccessReviewVersion"), "v2beta1", []string{"v1", "v1beta1"})},
-			knownTypes:      sets.NewString(string("Webhook")),
-			repeatableTypes: sets.NewString(string("Webhook")),
+			knownTypes:      sets.New[string]("Webhook"),
+			repeatableTypes: sets.New[string]("Webhook"),
 		},
 		// failurePolicy should be defined
 		{
@@ -384,8 +384,8 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 				},
 			},
 			expectedErrList: field.ErrorList{field.Required(field.NewPath("failurePolicy"), "")},
-			knownTypes:      sets.NewString(string("Webhook")),
-			repeatableTypes: sets.NewString(string("Webhook")),
+			knownTypes:      sets.New[string]("Webhook"),
+			repeatableTypes: sets.New[string]("Webhook"),
 		},
 		// failurePolicy should be one of "NoOpinion" or "Deny"
 		{
@@ -406,8 +406,8 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 				},
 			},
 			expectedErrList: field.ErrorList{field.NotSupported(field.NewPath("failurePolicy"), "AlwaysAllow", []string{"NoOpinion", "Deny"})},
-			knownTypes:      sets.NewString(string("Webhook")),
-			repeatableTypes: sets.NewString(string("Webhook")),
+			knownTypes:      sets.New[string]("Webhook"),
+			repeatableTypes: sets.New[string]("Webhook"),
 		},
 		// connectionInfo should be defined
 		{
@@ -425,8 +425,8 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 				},
 			},
 			expectedErrList: field.ErrorList{field.Required(field.NewPath("connectionInfo"), "")},
-			knownTypes:      sets.NewString(string("Webhook")),
-			repeatableTypes: sets.NewString(string("Webhook")),
+			knownTypes:      sets.New[string]("Webhook"),
+			repeatableTypes: sets.New[string]("Webhook"),
 		},
 		// connectionInfo should be one of InClusterConfig or KubeConfigFile
 		{
@@ -449,8 +449,8 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 			expectedErrList: field.ErrorList{
 				field.NotSupported(field.NewPath("connectionInfo"), api.WebhookConnectionInfo{Type: "ExternalClusterConfig"}, []string{"InClusterConfig", "KubeConfigFile"}),
 			},
-			knownTypes:      sets.NewString(string("Webhook")),
-			repeatableTypes: sets.NewString(string("Webhook")),
+			knownTypes:      sets.New[string]("Webhook"),
+			repeatableTypes: sets.New[string]("Webhook"),
 		},
 		// if connectionInfo=InClusterConfig, then kubeConfigFile should be nil
 		{
@@ -474,8 +474,8 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 			expectedErrList: field.ErrorList{
 				field.Invalid(field.NewPath("connectionInfo", "kubeConfigFile"), "", "can only be set when type=KubeConfigFile"),
 			},
-			knownTypes:      sets.NewString(string("Webhook")),
-			repeatableTypes: sets.NewString(string("Webhook")),
+			knownTypes:      sets.New[string]("Webhook"),
+			repeatableTypes: sets.New[string]("Webhook"),
 		},
 		// if connectionInfo=KubeConfigFile, then KubeConfigFile should be defined, must be an absolute path, should exist, shouldn't be a symlink
 		{
@@ -496,8 +496,8 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 				},
 			},
 			expectedErrList: field.ErrorList{field.Required(field.NewPath("kubeConfigFile"), "")},
-			knownTypes:      sets.NewString(string("Webhook")),
-			repeatableTypes: sets.NewString(string("Webhook")),
+			knownTypes:      sets.New[string]("Webhook"),
+			repeatableTypes: sets.New[string]("Webhook"),
 		},
 		{
 			configuration: api.AuthorizationConfiguration{
@@ -518,8 +518,8 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 				},
 			},
 			expectedErrList: field.ErrorList{field.Invalid(field.NewPath("kubeConfigFile"), badKubeConfigFile, "must be an absolute path")},
-			knownTypes:      sets.NewString(string("Webhook")),
-			repeatableTypes: sets.NewString(string("Webhook")),
+			knownTypes:      sets.New[string]("Webhook"),
+			repeatableTypes: sets.New[string]("Webhook"),
 		},
 		{
 			configuration: api.AuthorizationConfiguration{
@@ -540,8 +540,8 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 				},
 			},
 			expectedErrList: field.ErrorList{},
-			knownTypes:      sets.NewString(string("Webhook")),
-			repeatableTypes: sets.NewString(string("Webhook")),
+			knownTypes:      sets.New[string]("Webhook"),
+			repeatableTypes: sets.New[string]("Webhook"),
 		},
 		// if matchConditions are defined, the expression should be non-empty
 		{
@@ -567,8 +567,8 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 				},
 			},
 			expectedErrList: field.ErrorList{field.Required(field.NewPath("expression"), "")},
-			knownTypes:      sets.NewString(string("Webhook")),
-			repeatableTypes: sets.NewString(string("Webhook")),
+			knownTypes:      sets.New[string]("Webhook"),
+			repeatableTypes: sets.New[string]("Webhook"),
 		},
 
 		// TODO: When the CEL expression validator is implemented, add a few test cases to typecheck the expression
