@@ -150,7 +150,7 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 				},
 			},
 			expectedErrList: field.ErrorList{field.Duplicate(field.NewPath("type"), "Foo")},
-			knownTypes:      sets.New[string]("Webhook"),
+			knownTypes:      sets.New[string]("Foo"),
 			repeatableTypes: sets.New[string]("Webhook"),
 		},
 		// when type=Webhook, webhook needs to be defined
