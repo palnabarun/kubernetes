@@ -18,6 +18,7 @@ package cel
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/google/cel-go/cel"
 
@@ -28,6 +29,7 @@ import (
 	"k8s.io/apiserver/pkg/cel/environment"
 	"k8s.io/apiserver/pkg/cel/library"
 	"k8s.io/apiserver/pkg/cel/mutation"
+	"k8s.io/utils/lru"
 )
 
 const (
@@ -39,7 +41,18 @@ const (
 	AuthorizerVarName                = "authorizer"
 	RequestResourceAuthorizerVarName = "authorizer.requestResource"
 	VariableVarName                  = "variables"
+
+	// DefaultCacheSize is the default size for the CEL expression cache
+	DefaultCacheSize = 1000
 )
+
+// exprCacheKey represents a cache key for compiled CEL expressions
+type exprCacheKey struct {
+	expression string
+	envType    environment.Type
+	opts       OptionalVariableDeclarations
+}
+
 
 // BuildRequestType generates a DeclType for AdmissionRequest. This may be replaced with a utility that
 // converts the native type definition to apiservercel.DeclType once such a utility becomes available.
@@ -153,18 +166,85 @@ type Compiler interface {
 }
 
 type compiler struct {
-	varEnvs variableDeclEnvs
+	varEnvs   variableDeclEnvs
+	exprCache *lru.Cache
+	cacheMux  sync.RWMutex
 }
 
 func NewCompiler(env *environment.EnvSet) Compiler {
-	return &compiler{varEnvs: mustBuildEnvs(env)}
+	return &compiler{
+		varEnvs:   mustBuildEnvs(env),
+		exprCache: lru.New(DefaultCacheSize),
+	}
+}
+
+// NewCompilerWithCacheConfig creates a new Compiler with custom cache configuration
+func NewCompilerWithCacheConfig(env *environment.EnvSet, cacheSize int) Compiler {
+	if cacheSize <= 0 {
+		cacheSize = DefaultCacheSize
+	}
+	return &compiler{
+		varEnvs:   mustBuildEnvs(env),
+		exprCache: lru.New(cacheSize),
+	}
 }
 
 type variableDeclEnvs map[OptionalVariableDeclarations]*environment.EnvSet
 
+// getCompiledProgram retrieves a compiled CEL program from cache or compiles a new one
+func (c *compiler) getCompiledProgram(expressionAccessor ExpressionAccessor, options OptionalVariableDeclarations, envType environment.Type) (cel.Program, *cel.Type, error) {
+	expression := expressionAccessor.GetExpression()
+	key := exprCacheKey{expression: expression, envType: envType, opts: options}
+	
+	// Try to get from cache first
+	c.cacheMux.RLock()
+	if cached, found := c.exprCache.Get(key); found {
+		c.cacheMux.RUnlock()
+		if result, ok := cached.(compiledExpressionResult); ok {
+			return result.program, result.outputType, nil
+		}
+	} else {
+		c.cacheMux.RUnlock()
+	}
+	
+	// Cache miss, compile the expression
+	env, err := c.varEnvs[options].Env(envType)
+	if err != nil {
+		return nil, nil, err
+	}
+	
+	ast, issues := env.Compile(expression)
+	if issues != nil {
+		return nil, nil, apiservercel.NewCompilationError(issues)
+	}
+	
+	prog, err := env.Program(ast, cel.InterruptCheckFrequency(celconfig.CheckFrequency))
+	if err != nil {
+		return nil, nil, err
+	}
+	
+	// Cache the compiled program
+	result := compiledExpressionResult{
+		program:    prog,
+		outputType: ast.OutputType(),
+	}
+	
+	c.cacheMux.Lock()
+	c.exprCache.Add(key, result)
+	c.cacheMux.Unlock()
+	
+	return prog, ast.OutputType(), nil
+}
+
+// compiledExpressionResult holds a compiled CEL program and its output type
+type compiledExpressionResult struct {
+	program    cel.Program
+	outputType *cel.Type
+}
+
 // CompileCELExpression returns a compiled CEL expression.
 // perCallLimit was added for testing purpose only. Callers should always use const PerCallLimit from k8s.io/apiserver/pkg/apis/cel/config.go as input.
-func (c compiler) CompileCELExpression(expressionAccessor ExpressionAccessor, options OptionalVariableDeclarations, envType environment.Type) CompilationResult {
+func (c *compiler) CompileCELExpression(expressionAccessor ExpressionAccessor, options OptionalVariableDeclarations, envType environment.Type) CompilationResult {
 	resultError := func(errorString string, errType apiservercel.ErrorType, cause error) CompilationResult {
 		return CompilationResult{
 			Error: &apiservercel.Error{
@@ -176,19 +256,18 @@ func (c compiler) CompileCELExpression(expressionAccessor ExpressionAccessor, op
 		}
 	}
 
-	env, err := c.varEnvs[options].Env(envType)
+	prog, outputType, err := c.getCompiledProgram(expressionAccessor, options, envType)
 	if err != nil {
-		return resultError(fmt.Sprintf("unexpected error loading CEL environment: %v", err), apiservercel.ErrorTypeInternal, nil)
+		if compErr, ok := err.(*apiservercel.CompilationError); ok {
+			return resultError("compilation failed: "+compErr.Issues.String(), apiservercel.ErrorTypeInvalid, compErr)
+		}
+		return resultError(fmt.Sprintf("unexpected compilation error: %v", err), apiservercel.ErrorTypeInternal, nil)
 	}
 
-	ast, issues := env.Compile(expressionAccessor.GetExpression())
-	if issues != nil {
-		return resultError("compilation failed: "+issues.String(), apiservercel.ErrorTypeInvalid, apiservercel.NewCompilationError(issues))
-	}
 	found := false
 	returnTypes := expressionAccessor.ReturnTypes()
 	for _, returnType := range returnTypes {
-		if ast.OutputType().IsExactType(returnType) || cel.AnyType.IsExactType(returnType) {
+		if outputType.IsExactType(returnType) || cel.AnyType.IsExactType(returnType) {
 			found = true
 			break
 		}
@@ -196,29 +275,18 @@ func (c compiler) CompileCELExpression(expressionAccessor ExpressionAccessor, op
 	if !found {
 		var reason string
 		if len(returnTypes) == 1 {
-			reason = fmt.Sprintf("must evaluate to %v but got %v", returnTypes[0].String(), ast.OutputType().String())
+			reason = fmt.Sprintf("must evaluate to %v but got %v", returnTypes[0].String(), outputType.String())
 		} else {
-			reason = fmt.Sprintf("must evaluate to one of %v but got %v", returnTypes, ast.OutputType().String())
+			reason = fmt.Sprintf("must evaluate to one of %v but got %v", returnTypes, outputType.String())
 		}
 
 		return resultError(reason, apiservercel.ErrorTypeInvalid, nil)
 	}
 
-	_, err = cel.AstToCheckedExpr(ast)
-	if err != nil {
-		// should be impossible since env.Compile returned no issues
-		return resultError("unexpected compilation error: "+err.Error(), apiservercel.ErrorTypeInternal, nil)
-	}
-	prog, err := env.Program(ast,
-		cel.InterruptCheckFrequency(celconfig.CheckFrequency),
-	)
-	if err != nil {
-		return resultError("program instantiation failed: "+err.Error(), apiservercel.ErrorTypeInternal, nil)
-	}
 	return CompilationResult{
 		Program:            prog,
 		ExpressionAccessor: expressionAccessor,
-		OutputType:         ast.OutputType(),
+		OutputType:         outputType,
 	}
 }
 

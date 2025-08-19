@@ -69,6 +69,15 @@ func NewCompositedCompiler(envSet *environment.EnvSet) (*CompositedCompiler, err
 	return NewCompositedCompilerFromTemplate(compositionContext), nil
 }
 
+// NewCompositedCompilerWithCacheConfig creates a new CompositedCompiler with custom cache configuration
+func NewCompositedCompilerWithCacheConfig(envSet *environment.EnvSet, cacheSize int) (*CompositedCompiler, error) {
+	compositionContext, err := NewCompositionEnv(VariablesTypeName, envSet)
+	if err != nil {
+		return nil, err
+	}
+	return NewCompositedCompilerFromTemplateWithCacheConfig(compositionContext, cacheSize), nil
+}
+
 func NewCompositedCompilerFromTemplate(context *CompositionEnv) *CompositedCompiler {
 	context = &CompositionEnv{
 		MapType:           context.MapType,
@@ -76,6 +85,24 @@ func NewCompositedCompilerFromTemplate(context *CompositionEnv) *CompositedCompi
 		CompiledVariables: map[string]CompilationResult{},
 	}
 	compiler := NewCompiler(context.EnvSet)
+	conditionCompiler := &conditionCompiler{compiler}
+	mutation := &mutatingCompiler{compiler}
+	return &CompositedCompiler{
+		Compiler:          compiler,
+		ConditionCompiler: conditionCompiler,
+		MutatingCompiler:  mutation,
+		CompositionEnv:    context,
+	}
+}
+
+// NewCompositedCompilerFromTemplateWithCacheConfig creates a CompositedCompiler with custom cache configuration
+func NewCompositedCompilerFromTemplateWithCacheConfig(context *CompositionEnv, cacheSize int) *CompositedCompiler {
+	context = &CompositionEnv{
+		MapType:           context.MapType,
+		EnvSet:            context.EnvSet,
+		CompiledVariables: map[string]CompilationResult{},
+	}
+	compiler := NewCompilerWithCacheConfig(context.EnvSet, cacheSize)
 	conditionCompiler := &conditionCompiler{compiler}
 	mutation := &mutatingCompiler{compiler}
 	return &CompositedCompiler{

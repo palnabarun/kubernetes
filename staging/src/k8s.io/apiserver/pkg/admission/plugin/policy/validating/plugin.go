@@ -143,7 +143,8 @@ func compilePolicy(policy *Policy) Validator {
 	} else {
 		compositionEnvTemplate = getCompositionEnvTemplateWithoutStrictCost()
 	}
-	filterCompiler := cel.NewCompositedCompilerFromTemplate(compositionEnvTemplate)
+	// Use larger cache size for policy compilation as it processes many expressions
+	filterCompiler := cel.NewCompositedCompilerFromTemplateWithCacheConfig(compositionEnvTemplate, 2000)
 	filterCompiler.CompileAndStoreVariables(convertv1beta1Variables(policy.Spec.Variables), optionalVars, environment.StoredExpressions)
 
 	if len(matchConditions) > 0 {

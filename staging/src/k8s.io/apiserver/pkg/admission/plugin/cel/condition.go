@@ -39,6 +39,11 @@ func NewConditionCompiler(env *environment.EnvSet) ConditionCompiler {
 	return &conditionCompiler{compiler: NewCompiler(env)}
 }
 
+// NewConditionCompilerWithCacheConfig creates a new ConditionCompiler with custom cache configuration
+func NewConditionCompilerWithCacheConfig(env *environment.EnvSet, cacheSize int) ConditionCompiler {
+	return &conditionCompiler{compiler: NewCompilerWithCacheConfig(env, cacheSize)}
+}
+
 // CompileCondition compiles the cel expressions defined in the ExpressionAccessors into a ConditionEvaluator
 func (c *conditionCompiler) CompileCondition(expressionAccessors []ExpressionAccessor, options OptionalVariableDeclarations, mode environment.Type) ConditionEvaluator {
 	compilationResults := make([]CompilationResult, len(expressionAccessors))

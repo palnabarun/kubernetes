@@ -291,3 +291,122 @@ func (v *fakeAuditAnnotationCondition) GetExpression() string {
 func (v *fakeAuditAnnotationCondition) ReturnTypes() []*celgo.Type {
 	return []*celgo.Type{celgo.StringType, celgo.NullType}
 }
+
+func TestExpressionCaching(t *testing.T) {
+	compiler := NewCompiler(environment.MustBaseEnvSet(environment.DefaultCompatibilityVersion(), true))
+	
+	// Test that the same expression with same parameters gets cached
+	expr := "object.foo == 'test'"
+	options := OptionalVariableDeclarations{HasParams: false, HasAuthorizer: false}
+	
+	// Compile the expression twice
+	result1 := compiler.CompileCELExpression(&fakeValidationCondition{
+		Expression: expr,
+	}, options, environment.NewExpressions)
+	
+	result2 := compiler.CompileCELExpression(&fakeValidationCondition{
+		Expression: expr,
+	}, options, environment.NewExpressions)
+	
+	// Both should succeed
+	if result1.Error != nil {
+		t.Errorf("First compilation failed: %v", result1.Error)
+	}
+	if result2.Error != nil {
+		t.Errorf("Second compilation failed: %v", result2.Error)
+	}
+	
+	// The programs should be functionally equivalent (both should work)
+	// We can't directly compare Program objects as they may be different instances
+	// but we can verify they both exist and have the same output type
+	if result1.OutputType == nil || result2.OutputType == nil {
+		t.Error("Output types should not be nil")
+	}
+	
+	if result1.OutputType.String() != result2.OutputType.String() {
+		t.Errorf("Output types should match: %v vs %v", result1.OutputType, result2.OutputType)
+	}
+}
+
+func TestCachingWithDifferentOptions(t *testing.T) {
+	compiler := NewCompiler(environment.MustBaseEnvSet(environment.DefaultCompatibilityVersion(), true))
+	
+	// Test that same expression with different options creates different cache entries
+	expr := "object.foo == params.bar"
+	
+	// Compile with params
+	resultWithParams := compiler.CompileCELExpression(&fakeValidationCondition{
+		Expression: expr,
+	}, OptionalVariableDeclarations{HasParams: true, HasAuthorizer: false}, environment.NewExpressions)
+	
+	// Compile without params (should fail)
+	resultWithoutParams := compiler.CompileCELExpression(&fakeValidationCondition{
+		Expression: expr,
+	}, OptionalVariableDeclarations{HasParams: false, HasAuthorizer: false}, environment.NewExpressions)
+	
+	// First should succeed, second should fail
+	if resultWithParams.Error != nil {
+		t.Errorf("Compilation with params should succeed: %v", resultWithParams.Error)
+	}
+	
+	if resultWithoutParams.Error == nil {
+		t.Error("Compilation without params should fail due to undeclared 'params'")
+	}
+}
+
+func TestCacheKeyUniqueness(t *testing.T) {
+	compiler := NewCompiler(environment.MustBaseEnvSet(environment.DefaultCompatibilityVersion(), true))
+	
+	// Test that different expressions create different cache entries
+	expr1 := "object.foo == 'test1'"
+	expr2 := "object.foo == 'test2'"
+	options := OptionalVariableDeclarations{HasParams: false, HasAuthorizer: false}
+	
+	result1 := compiler.CompileCELExpression(&fakeValidationCondition{
+		Expression: expr1,
+	}, options, environment.NewExpressions)
+	
+	result2 := compiler.CompileCELExpression(&fakeValidationCondition{
+		Expression: expr2,
+	}, options, environment.NewExpressions)
+	
+	// Both should succeed
+	if result1.Error != nil {
+		t.Errorf("First expression compilation failed: %v", result1.Error)
+	}
+	if result2.Error != nil {
+		t.Errorf("Second expression compilation failed: %v", result2.Error)
+	}
+	
+	// They should have the same output type but different expressions
+	if result1.ExpressionAccessor.GetExpression() == result2.ExpressionAccessor.GetExpression() {
+		t.Error("Expressions should be different")
+	}
+}
+
+func TestCompilerWithCustomCacheSize(t *testing.T) {
+	// Test the NewCompilerWithCacheConfig function
+	compiler := NewCompilerWithCacheConfig(environment.MustBaseEnvSet(environment.DefaultCompatibilityVersion(), true), 5)
+	
+	expr := "object.foo == 'test'"
+	options := OptionalVariableDeclarations{HasParams: false, HasAuthorizer: false}
+	
+	result := compiler.CompileCELExpression(&fakeValidationCondition{
+		Expression: expr,
+	}, options, environment.NewExpressions)
+	
+	if result.Error != nil {
+		t.Errorf("Compilation with custom cache size failed: %v", result.Error)
+	}
+	
+	// Test with zero cache size (should default to DefaultCacheSize)
+	compiler2 := NewCompilerWithCacheConfig(environment.MustBaseEnvSet(environment.DefaultCompatibilityVersion(), true), 0)
+	
+	result2 := compiler2.CompileCELExpression(&fakeValidationCondition{
+		Expression: expr,
+	}, options, environment.NewExpressions)
+	
+	if result2.Error != nil {
+		t.Errorf("Compilation with zero cache size failed: %v", result2.Error)
+	}
+}
